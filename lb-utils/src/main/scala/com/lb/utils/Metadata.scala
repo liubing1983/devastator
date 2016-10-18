@@ -29,7 +29,7 @@ case class ClassLoaderFilePath(path: String) extends FilePath
  */
 class Metadata(path: FilePath) {
 
-  val log: Logger = LoggerFactory.getLogger("Metadata")
+  val log: Logger = LoggerFactory.getLogger(Metadata.getClass)
 
   val prop: Properties = new Properties
 
@@ -51,8 +51,13 @@ class Metadata(path: FilePath) {
   }
 }
 
-//object Metadata extends App {
-//  val m = new Metadata(FromFilePath("/opt/test.properties"))
-//  println(m.prop.getProperty("age", "123"))
-//  println(m.prop.getProperty("name", "123"))
-//}
+object Metadata extends App {
+  val m = new Metadata(FromFilePath("/opt/test.properties"))
+  val log: Logger = LoggerFactory.getLogger(Metadata.getClass)
+  log.debug(m.prop.getProperty("age", "123"))
+  log.info(m.prop.getProperty("name", "123"))
+
+  for(i <- 0 to 100){
+    log.debug(s"$i")
+  }
+}

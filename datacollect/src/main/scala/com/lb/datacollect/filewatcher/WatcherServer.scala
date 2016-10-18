@@ -5,9 +5,10 @@ import java.nio.file.StandardWatchEventKinds.{ENTRY_CREATE, ENTRY_DELETE, ENTRY_
 import java.nio.file.WatchEvent.Kind
 import java.nio.file.{WatchEvent, _}
 
-import akka.actor.{Actor, ActorSystem, Props}
+import org.apache.log4j.Logger;
+
+import akka.actor.{Terminated, Actor, ActorSystem, Props}
 import com.lb.utils.{DateUtils, FileUtils, FromFilePath, Metadata}
-import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.JavaConversions._
 
@@ -29,15 +30,22 @@ case class WatcherServerBean(val watcher_path: String,
  */
 class WatcherServer() extends Actor {
 
-  val logger: Logger = LoggerFactory.getLogger(WatcherServer.getClass)
+ // val logger: Logger = LoggerFactory.getLogger("WatcherServer")
 
+  val logger : Logger  = Logger.getLogger(WatcherServer.getClass)
+
+  logger.info("hhhshshshshshshshshshshshshshsh")
+
+  val putActor = context.actorOf(Props[FileToHdfsActor], name = s"putActor")
+
+  // 监控actor的状态
+  context.watch(putActor)
 
   def receive = {
-
     case WatcherServerBean(watcher_path, hdfs_path, partitions, back_path, error_path, suffix, check_suffix) => {
 
-      val putActor = context.actorOf(Props[FileToHdfsActor], name = "putActor")
 
+      // 计算分区方式
       val partinion = partitionData(partitions)
 
       // 启动监控前查看文件夹内是否存在文件
@@ -48,7 +56,7 @@ class WatcherServer() extends Actor {
       }
 
       // 得到监控目录中所有剩余文件/文件夹列表
-      // FileUtils.getListOfFiles(new File(watcher_path)).foreach(org.apache.commons.io.FileUtils.moveDirectory(_, new File(s"$error_path/$partinion/")))
+      FileUtils.getListOfFiles(new File(watcher_path)).foreach(org.apache.commons.io.FileUtils.moveDirectory(_, new File(s"$error_path/$partinion/")))
 
 
       val watcher: WatchService = FileSystems.getDefault().newWatchService()
@@ -96,6 +104,7 @@ class WatcherServer() extends Actor {
         key.reset()
       }
     }
+    case Terminated(putActor) => logger.error(s"putActor 出现异常")
   }
 
   /**
@@ -129,7 +138,7 @@ class WatcherServer() extends Actor {
 object WatcherServer {
 
 
-  val logger: Logger = LoggerFactory.getLogger(WatcherServer.getClass)
+ // val logger: Logger = LoggerFactory.getLogger(WatcherServer.getClass)
 
   def main(args: Array[String]): Unit = {
 
@@ -152,7 +161,6 @@ object WatcherServer {
 
     // 初始化akka actor
     val as = ActorSystem("FileWatcher")
-
 
     // 判断是否设置了多目录多分区
     (watcher_files_array.length, dest_files_part_array.length) match {
