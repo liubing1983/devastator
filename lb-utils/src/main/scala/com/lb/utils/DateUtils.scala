@@ -3,29 +3,28 @@ package com.lb.utils
 import java.text.{DateFormat, SimpleDateFormat}
 import java.util.{Calendar, Date}
 
+import org.slf4j.{LoggerFactory, Logger}
+
 import scala.reflect.macros.ParseException
 
-class DateUtils(val format: String = "yyyy-MM-dd")
+//class DateUtils(val format: String = "yyyy-MM-dd")
 
 /**
  * Created by liubing on 16-10-13.
  */
 object DateUtils {
 
+  val logger: Logger = LoggerFactory.getLogger("DateUtils")
+
   val df1: DateFormat = new SimpleDateFormat("yyyy-MM-dd")
   val df2: DateFormat = new SimpleDateFormat("yyyyMMdd")
 
-  val du: DateUtils = new DateUtils
 
   /**
    * 获取系统时间, 并按要求格式化
    * @return
    */
-  def systemDate(): String = {
-    date2String(new Date(), du.format)
-  }
-
-  def systemDate(pattern: String): String = {
+  def systemDate(pattern: String = "yyyy-MM-dd"): String = {
     date2String(new Date(), pattern)
   }
 
@@ -75,6 +74,27 @@ object DateUtils {
   }
 
   /**
+   * 计算两个时间相差的天数
+   * @param date1
+   * @param date2
+   * @return
+   */
+  def fun(date1: String = systemDate("yyyyMMdd"))(date2: String) = {
+    //println(date1 +" " + df2.parse(date1).getTime)
+    //println(date2+" "+ df2.parse(date2).getTime)
+    //println(df2.parse(date1).getTime - df2.parse(date2).getTime)
+    //println(df2.parse(date1).getTime - df2.parse(date2).getTime / (1000 * 3600 * 24))
+    var a: Long = -1
+    try {
+      a = (df2.parse(date1).getTime - df2.parse(date2).getTime) / (1000 * 3600 * 24)
+    }
+    catch {
+      case e: Exception => println(e.printStackTrace())
+    }
+    a.toInt
+  }
+
+  /**
    * String转换成date
    *
    * @param date_time
@@ -103,13 +123,14 @@ object DateUtils {
   }
 
 
-}
+  def main(args: Array[String]) {
 
-//object DateUtils2 extends App {
-//  val du: DateUtils = new DateUtils
-//  println(du.systemDateDiff("yyyyMMdd HH:mm:ss", 60))
-//  println(du.systemDateDiff("yyyyMMdd hh:mm:ss", 0))
-//  println(du.systemDateDiff("yyyyMMdd hh:mm:ss", -60))
-//  // println(du.systemDate("yyyyMMddhh"))
-//  println(du.differ2day(-1, "yyyyMMdd"))
-//}
+    println(fun()("20161015"))
+
+    println(DateUtils.systemDateDiff("yyyyMMdd HH:mm:ss", 60))
+    println(DateUtils.systemDateDiff("yyyyMMdd hh:mm:ss", 0))
+    println(DateUtils.systemDateDiff("yyyyMMdd hh:mm:ss", -60))
+    // println(du.systemDate("yyyyMMddhh"))
+    println(DateUtils.differ2day(-1, "yyyyMMdd"))
+  }
+}

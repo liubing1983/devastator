@@ -5,12 +5,12 @@ import java.nio.file.StandardWatchEventKinds.{ENTRY_CREATE, ENTRY_DELETE, ENTRY_
 import java.nio.file.WatchEvent.Kind
 import java.nio.file.{WatchEvent, _}
 
-import org.apache.log4j.Logger;
-
-import akka.actor.{Terminated, Actor, ActorSystem, Props}
+import akka.actor.{Actor, ActorSystem, Props, Terminated}
 import com.lb.utils.{DateUtils, FileUtils, FromFilePath, Metadata}
+import org.apache.log4j.Logger
 
 import scala.collection.JavaConversions._
+import scala.concurrent.duration._
 
 case class WatcherServerBean(val watcher_path: String,
                              val dest_path: String,
@@ -34,8 +34,6 @@ class WatcherServer() extends Actor {
 
   val logger : Logger  = Logger.getLogger(WatcherServer.getClass)
 
-  logger.info("hhhshshshshshshshshshshshshshsh")
-
   val putActor = context.actorOf(Props[FileToHdfsActor], name = s"putActor")
 
   // 监控actor的状态
@@ -56,7 +54,15 @@ class WatcherServer() extends Actor {
       }
 
       // 得到监控目录中所有剩余文件/文件夹列表
-      FileUtils.getListOfFiles(new File(watcher_path)).foreach(org.apache.commons.io.FileUtils.moveDirectory(_, new File(s"$error_path/$partinion/")))
+      FileUtils.getListOfFiles(new File(watcher_path)).foreach{ file=>
+        var destFile = new File(s"$error_path/$partinion/${file.getName}")
+        if(destFile.isFile){  // 判断文件在备份目录是否已经存在
+          // 如果存在, 在文件名称后添加时间戳
+          destFile = new File(s"${back_path}/${file.getName}_back_${DateUtils.systemDate("yyyyMMdd-hhmmss")}")
+          logger.debug(s"文件：${file}, 在备份目录已经存在")
+        }
+        org.apache.commons.io.FileUtils.moveFile(file, destFile)
+      }
 
 
       val watcher: WatchService = FileSystems.getDefault().newWatchService()
@@ -121,11 +127,11 @@ class WatcherServer() extends Actor {
    * @param format
    * @return
    */
-  def partitionData(partitions: String, format: String = "yyyyMM/dd"): String = {
+  def partitionData(partitions: String, format: String = "yyyyMMdd"): String = {
 
     partitions match {
       // 按天分区
-      case "24" => DateUtils.systemDate("yyyyMM/dd")
+      case "24" => DateUtils.systemDate("yyyyMMdd")
       // 按小时分区
       case "60" => ""
       case _ => ""
@@ -155,6 +161,7 @@ object WatcherServer {
     val error_path = m.prop.getProperty("error_path", s"${m.prop.getProperty("watcher_path")}/error")
     val suffix = m.prop.getProperty("suffix", ".csv")
     val check_suffix = m.prop.getProperty("check_suffix", ".ok")
+    val diff = m.prop.getProperty("diff", "30")
 
     val watcher_files_array = watcher_files.split(",", -1)
     val dest_files_part_array = dest_files_part.split(",", -1)
@@ -174,7 +181,21 @@ object WatcherServer {
           // 为每个文件夹创建actor
           val actor = as.actorOf(Props[WatcherServer], name = s"WatcherServer-$lines")
           // 发送监控信息
-          actor ! WatcherServerBean(s"${watcher_path}/$lines", s"${hdfs_path}/$lines", dest_files_part, back_path, error_path, suffix, check_suffix)
+          actor ! WatcherServerBean(s"${watcher_path}/$lines", s"${hdfs_path}/$lines", dest_files_part, s"$back_path/$lines", s"$error_path/$lines", suffix, check_suffix)
+
+
+          // 采集机数据生命周期管理
+          import scala.concurrent.ExecutionContext.Implicits.global
+          val file_lifecycle_actor = as.actorOf(Props[FileLifeCycle], name = s"back_file_lifecycle_actor-$lines")
+
+          // 定时删除back目录 [0毫秒后开始执行, 每隔1天执行一次]
+          val file_lifecycle_schedule = as.scheduler.schedule(0 milliseconds, 1 days,file_lifecycle_actor,FileLifeCycleBean(s"$back_path/$lines", diff.toInt))
+          //这会取消未来的Tick发送
+          //cancellable.cancel()
+
+          // 定时删除error目录
+          val error_lifecycle_schedule = as.scheduler.schedule(0 milliseconds,1 days,file_lifecycle_actor,FileLifeCycleBean(s"$error_path/$lines", diff.toInt))
+
         }
     }
 

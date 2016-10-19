@@ -7,7 +7,6 @@ import java.io.File
  */
 object FileUtils {
 
-
   /**
    * 基于文件扩展名限制返回文件列表
    * @param dir
@@ -35,9 +34,10 @@ object FileUtils {
    * @return
    */
   def getListOfDirectories(dir: File) : List[File] ={
-    dir.listFiles.filter(_.isDirectory).toList
+    if(dir.exists){
+      dir.listFiles.filter(_.isDirectory).toList
+    }else{
+      List[File]()
+    }
   }
-
-
-
 }
