@@ -34,10 +34,16 @@ class WatcherServer() extends Actor {
 
   val logger : Logger  = Logger.getLogger(WatcherServer.getClass)
 
-  val putActor = context.actorOf(Props[FileToHdfsActor], name = s"putActor")
+  override  def preStart={
+    //println("1111111111111111111111111111112222222222222222222222222222")
+  }
+
+  val putActor = context.actorOf(Props[FileToHdfsActor].withDispatcher("writer-dispatcher"), name = s"putActor")
 
   // 监控actor的状态
   context.watch(putActor)
+
+
 
   def receive = {
     case WatcherServerBean(watcher_path, hdfs_path, partitions, back_path, error_path, suffix, check_suffix) => {
@@ -50,7 +56,8 @@ class WatcherServer() extends Actor {
       // 得到监控目录中的校验文件列表
       FileUtils.getListOfFiles(new File(watcher_path), List(check_suffix)).foreach { filename =>
         // 根据得到的文件列表上传对应的数据文件
-        putActor ! FileToHdfsActorBean(filename.getPath.replace(".ok", suffix), filename.getPath, s"${hdfs_path}/${partinion}/", s"$back_path/$partinion/", s"$error_path/$partinion/")
+        logger.info(s"启动前读取到监控目录存在文件, ${filename.getPath}")
+        putActor ! FileToHdfsActorBean(filename.getPath.replace(check_suffix, suffix), filename.getPath, s"${hdfs_path}/${partinion}/", s"$back_path/$partinion/", s"$error_path/$partinion/")
       }
 
       // 得到监控目录中所有剩余文件/文件夹列表
@@ -128,7 +135,6 @@ class WatcherServer() extends Actor {
    * @return
    */
   def partitionData(partitions: String, format: String = "yyyyMMdd"): String = {
-
     partitions match {
       // 按天分区
       case "24" => DateUtils.systemDate("yyyyMMdd")
@@ -136,9 +142,7 @@ class WatcherServer() extends Actor {
       case "60" => ""
       case _ => ""
     }
-
   }
-
 }
 
 object WatcherServer {
@@ -148,9 +152,15 @@ object WatcherServer {
 
   def main(args: Array[String]): Unit = {
 
+    if (args.length != 1) {
+      println("Usage: %s [generic options] <properties path>  \n", getClass().getSimpleName())
+      System.exit(1)
+    }
+
 
     // 从配置文件中读取数据
-    val m = new Metadata(FromFilePath("/opt/test.properties"))
+    // val m = new Metadata(FromFilePath("/opt/test.properties"))
+    val m = new Metadata(FromFilePath(args(0)))
 
     val watcher_path = m.prop.getProperty("watcher_path")
     val watcher_files = m.prop.getProperty("watcher_files")
@@ -161,7 +171,7 @@ object WatcherServer {
     val error_path = m.prop.getProperty("error_path", s"${m.prop.getProperty("watcher_path")}/error")
     val suffix = m.prop.getProperty("suffix", ".csv")
     val check_suffix = m.prop.getProperty("check_suffix", ".ok")
-    val diff = m.prop.getProperty("diff", "30")
+    val diff = m.prop.getProperty("diff", "1")
 
     val watcher_files_array = watcher_files.split(",", -1)
     val dest_files_part_array = dest_files_part.split(",", -1)
@@ -179,10 +189,9 @@ object WatcherServer {
         // 遍历所有的待监控文件夹
         watcher_files_array.foreach { lines =>
           // 为每个文件夹创建actor
-          val actor = as.actorOf(Props[WatcherServer], name = s"WatcherServer-$lines")
+          val actor = as.actorOf(Props[WatcherServer].withDispatcher("my-pinned-dispatcher"), name = s"WatcherServer-$lines")
           // 发送监控信息
           actor ! WatcherServerBean(s"${watcher_path}/$lines", s"${hdfs_path}/$lines", dest_files_part, s"$back_path/$lines", s"$error_path/$lines", suffix, check_suffix)
-
 
           // 采集机数据生命周期管理
           import scala.concurrent.ExecutionContext.Implicits.global
@@ -195,9 +204,8 @@ object WatcherServer {
 
           // 定时删除error目录
           val error_lifecycle_schedule = as.scheduler.schedule(0 milliseconds,1 days,file_lifecycle_actor,FileLifeCycleBean(s"$error_path/$lines", diff.toInt))
-
+          Thread.sleep(10000)
         }
     }
-
   }
 }

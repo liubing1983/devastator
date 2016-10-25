@@ -34,6 +34,8 @@ class FileLifeCycle extends Actor {
           case -1 =>
             org.apache.commons.io.FileUtils.deleteQuietly(dirname)
             logger.error(s"发现异常目录: ${dirname}, 已直接删除")
+
+          case _ =>
         }
 
       }
