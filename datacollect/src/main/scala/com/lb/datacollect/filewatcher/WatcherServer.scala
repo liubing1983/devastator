@@ -171,7 +171,7 @@ object WatcherServer {
     val error_path = m.prop.getProperty("error_path", s"${m.prop.getProperty("watcher_path")}/error")
     val suffix = m.prop.getProperty("suffix", ".csv")
     val check_suffix = m.prop.getProperty("check_suffix", ".ok")
-    val diff = m.prop.getProperty("diff", "1")
+    val diff = m.prop.getProperty("diff", "30")
 
     val watcher_files_array = watcher_files.split(",", -1)
     val dest_files_part_array = dest_files_part.split(",", -1)
